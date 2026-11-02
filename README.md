@@ -81,7 +81,7 @@ src/
 ### Lancement
 
 ```bash
-git clone https://github.com/<ton-compte>/<dépôt-front>.git
+git clone git@github.com:toumaniaboubacarbamba/my-show-time-web.git
 cd my-show-time-web
 npm install
 ```

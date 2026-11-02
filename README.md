@@ -2,12 +2,11 @@
 
 Application web de billetterie pour les concerts et festivals d'Abidjan : les spectateurs découvrent la programmation, réservent leurs places et présentent un **QR code** à l'entrée ; les administrateurs pilotent les concerts, les utilisateurs et le contrôle des billets.
 
-Ce dépôt contient le **front-end** (Next.js). Il consomme l'API REST **NestJS + MongoDB** : [`<lien-du-dépôt-backend>`](https://github.com/toumaniaboubacarbamba/-my_show_time).
+Ce dépôt contient le **front-end** (Next.js). Il consomme l'API REST **NestJS + MongoDB** : (https://github.com/toumaniaboubacarbamba/-my_show_time).
 
 > 🔗 Démo : _à venir_ · 📚 Documentation de l'API (Swagger) : `<url-de-l-api>/docs`
 
-<!-- Capture principale : l'accueil -->
-![Accueil My Show Time](docs/screenshots/accueil.png)
+[Accueil My Show Time](docs/screenshots/accueil.png)
 
 ---
 

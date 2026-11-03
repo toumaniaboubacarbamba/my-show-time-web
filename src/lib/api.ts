@@ -201,6 +201,13 @@ export const bookingsApi = {
     return request<unknown>(`/bookings/${id}/cancel`, { method: "PATCH" });
   },
 
+  // Réservé au staff (admin) : marque le billet comme utilisé à l'entrée
+  checkIn(reference: string) {
+    return request<TicketCheck>(`/bookings/check-in/${encodeURIComponent(reference)}`, {
+      method: "PATCH",
+    });
+  },
+
   // Page publique : pas besoin d'être connecté
   verify(reference: string) {
     return request<TicketCheck>(

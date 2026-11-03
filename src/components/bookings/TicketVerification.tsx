@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ApiError, bookingsApi } from "@/lib/api";
-import { formatDateLong, formatPrice } from "@/lib/format";
+import { formatDateCompact, formatDateLong, formatPrice } from "@/lib/format";
 import type { TicketCheck } from "@/lib/types";
 
 type State =
@@ -51,15 +51,29 @@ export default function TicketVerification({ reference }: { reference: string })
       {state.kind === "ok" && (() => {
         const { ticket } = state;
         const cancelled = ticket.status === "cancelled";
+        const used = !cancelled && Boolean(ticket.checkedInAt);
         const past = ticket.concert ? new Date(ticket.concert.date).getTime() < now : false;
 
         return (
           <div className="overflow-hidden rounded-3xl border border-outline-variant/60 bg-surface-container-low">
-            <div className={`px-6 py-5 text-center ${cancelled ? "bg-error/15" : "bg-tertiary/15"}`}>
-              <p className={`font-sora text-xl font-bold ${cancelled ? "text-error" : "text-tertiary"}`}>
-                {cancelled ? "Billet annulé" : "Billet valide"}
+            <div
+              className={`px-6 py-5 text-center ${
+                cancelled ? "bg-error/15" : used ? "bg-primary-container/15" : "bg-tertiary/15"
+              }`}
+            >
+              <p
+                className={`font-sora text-xl font-bold ${
+                  cancelled ? "text-error" : used ? "text-primary" : "text-tertiary"
+                }`}
+              >
+                {cancelled ? "Billet annulé" : used ? "Billet déjà utilisé" : "Billet valide"}
               </p>
-              {!cancelled && past && (
+              {used && ticket.checkedInAt && (
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  Entrée enregistrée le {formatDateCompact(ticket.checkedInAt)}.
+                </p>
+              )}
+              {!cancelled && !used && past && (
                 <p className="mt-1 text-sm text-on-surface-variant">Ce concert a déjà eu lieu.</p>
               )}
             </div>

@@ -59,7 +59,10 @@ export interface Booking {
 }
 
 // Réponse de GET /bookings/verify/:reference (publique, sans _id)
-export type TicketCheck = Omit<Booking, "_id" | "createdAt">;
+export type TicketCheck = Omit<Booking, "_id" | "createdAt"> & {
+  // date d'entrée enregistrée par le contrôle (null/absent = billet pas encore utilisé)
+  checkedInAt?: string | null;
+};
 
 export interface AppNotification {
   _id: string;

@@ -6,8 +6,10 @@ import { formatDateCompact, formatPrice } from "@/lib/format";
 import { extractReference } from "@/lib/reference";
 import type { TicketCheck } from "@/lib/types";
 
+type Outcome = "valid" | "entered" | "used" | "cancelled" | "invalid" | "error";
+
 type Result =
-  | { kind: "valid" | "cancelled"; ticket: TicketCheck; past: boolean; duplicate: boolean }
+  | { kind: "valid" | "entered" | "used" | "cancelled"; ticket: TicketCheck; past: boolean }
   | { kind: "invalid" }
   | { kind: "error"; message: string };
 
@@ -15,22 +17,36 @@ interface HistoryItem {
   id: number;
   reference: string;
   label: string;
-  outcome: "valid" | "cancelled" | "invalid" | "error";
+  outcome: Outcome;
   at: number;
 }
 
-const outcomeStyle = {
+const outcomeStyle: Record<Outcome, string> = {
   valid: "bg-tertiary/15 text-tertiary",
+  entered: "bg-tertiary/15 text-tertiary",
+  used: "bg-primary-container/20 text-primary",
   cancelled: "bg-error/15 text-error",
   invalid: "bg-error/15 text-error",
   error: "bg-surface-container-highest text-on-surface-variant",
-} as const;
+};
 
-const outcomeLabel = {
+const outcomeLabel: Record<Outcome, string> = {
   valid: "Valide",
+  entered: "Entrée validée",
+  used: "Déjà utilisé",
   cancelled: "Annulé",
   invalid: "Introuvable",
   error: "Erreur",
+};
+
+// Couleur de l'en-tête du résultat
+const tone = {
+  valid: { box: "border-tertiary/50", head: "bg-tertiary/15", text: "text-tertiary" },
+  entered: { box: "border-tertiary/50", head: "bg-tertiary/15", text: "text-tertiary" },
+  used: { box: "border-primary-container/60", head: "bg-primary-container/15", text: "text-primary" },
+  cancelled: { box: "border-error/50", head: "bg-error/15", text: "text-error" },
+  invalid: { box: "border-error/50", head: "bg-error/15", text: "text-error" },
+  error: { box: "border-error/50", head: "bg-error/15", text: "text-error" },
 } as const;
 
 export default function TicketControl() {
@@ -43,15 +59,19 @@ export default function TicketControl() {
 
   // Scan caméra : seulement si le navigateur sait lire les QR codes ET que la page est en HTTPS (ou localhost)
   const [cameraSupported] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      "BarcodeDetector" in window &&
-      window.isSecureContext,
+    () => typeof window !== "undefined" && "BarcodeDetector" in window && window.isSecureContext,
   );
   const [scanning, setScanning] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  function pushHistory(reference: string, label: string, outcome: Outcome) {
+    counter.current += 1;
+    const item = { id: counter.current, reference, label, outcome, at: Date.now() };
+    setHistory((prev) => [item, ...prev].slice(0, 10));
+  }
+
+  // Étape 1 : vérifier le billet (lecture seule)
   async function check(raw: string) {
     const reference = extractReference(raw);
     if (!reference) return;
@@ -61,15 +81,14 @@ export default function TicketControl() {
 
     let next: Result;
     let label = reference.slice(0, 8).toUpperCase();
-    let outcome: HistoryItem["outcome"];
+    let outcome: Outcome;
 
     try {
       const ticket = await bookingsApi.verify(reference);
       const past = ticket.concert ? new Date(ticket.concert.date).getTime() < Date.now() : false;
-      const duplicate = history.some((h) => h.reference === reference && h.outcome === "valid");
-      outcome = ticket.status === "cancelled" ? "cancelled" : "valid";
+      outcome = ticket.status === "cancelled" ? "cancelled" : ticket.checkedInAt ? "used" : "valid";
       label = ticket.concert?.title ?? label;
-      next = { kind: outcome, ticket, past, duplicate };
+      next = { kind: outcome, ticket, past } as Result;
     } catch (e) {
       if (e instanceof ApiError && (e.status === 404 || e.status === 400)) {
         outcome = "invalid";
@@ -80,14 +99,34 @@ export default function TicketControl() {
       }
     }
 
-    counter.current += 1;
-    setHistory((prev) =>
-      [{ id: counter.current, reference, label, outcome, at: Date.now() }, ...prev].slice(0, 10),
-    );
+    pushHistory(reference, label, outcome);
     setResult(next);
     setBusy(false);
     setValue("");
     inputRef.current?.focus();
+  }
+
+  // Étape 2 : enregistrer l'entrée (une seule fois par billet, garanti par l'API)
+  async function validateEntry() {
+    if (!result || result.kind !== "valid") return;
+    const { ticket, past } = result;
+
+    setBusy(true);
+    try {
+      const entered = await bookingsApi.checkIn(ticket.reference);
+      setResult({ kind: "entered", ticket: entered, past });
+      pushHistory(ticket.reference, entered.concert?.title ?? ticket.reference.slice(0, 8).toUpperCase(), "entered");
+      setBusy(false);
+      inputRef.current?.focus();
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        // Quelqu'un vient de le valider : on réaffiche l'état réel (« déjà utilisé »)
+        await check(ticket.reference);
+        return;
+      }
+      setResult({ kind: "error", message: e instanceof Error ? e.message : "Validation impossible." });
+      setBusy(false);
+    }
   }
 
   // Caméra
@@ -133,12 +172,21 @@ export default function TicketControl() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanning]);
 
+  const heading: Record<Result["kind"], string> = {
+    valid: "Billet valide",
+    entered: "Entrée validée",
+    used: "Billet déjà utilisé",
+    cancelled: "Billet annulé",
+    invalid: "Billet introuvable",
+    error: "Vérification impossible",
+  };
+
   return (
     <div className="mx-auto max-w-3xl">
       <p className="text-xs font-semibold uppercase tracking-widest text-primary">Administration</p>
       <h1 className="font-sora text-3xl font-bold">Contrôle des billets</h1>
       <p className="mt-2 text-on-surface-variant">
-        Saisis ou colle la référence du billet (ou le lien du QR code) pour vérifier son statut à l&apos;entrée.
+        Saisis ou colle la référence du billet (ou le lien du QR code), vérifie-le, puis valide l&apos;entrée.
       </p>
 
       <form
@@ -161,7 +209,7 @@ export default function TicketControl() {
           disabled={busy || !value.trim()}
           className="rounded-xl bg-primary-container px-6 py-3 font-sora font-semibold text-on-primary hover:brightness-110 disabled:opacity-50"
         >
-          {busy ? "Vérification…" : "Vérifier"}
+          {busy ? "Patiente…" : "Vérifier"}
         </button>
       </form>
 
@@ -185,30 +233,31 @@ export default function TicketControl() {
       </div>
 
       {scanning && (
-        <video ref={videoRef} playsInline muted className="mt-4 aspect-video w-full max-w-md rounded-2xl border border-outline-variant bg-black object-cover" />
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          className="mt-4 aspect-video w-full max-w-md rounded-2xl border border-outline-variant bg-black object-cover"
+        />
       )}
 
       {/* Résultat */}
       {result && (
-        <section
-          aria-live="polite"
-          className={`mt-8 overflow-hidden rounded-3xl border ${
-            result.kind === "valid" ? "border-tertiary/50" : "border-error/50"
-          }`}
-        >
-          <div className={`px-6 py-6 text-center ${result.kind === "valid" ? "bg-tertiary/15" : "bg-error/15"}`}>
-            <p className={`font-sora text-3xl font-bold ${result.kind === "valid" ? "text-tertiary" : "text-error"}`}>
-              {result.kind === "valid" && "Billet valide"}
-              {result.kind === "cancelled" && "Billet annulé"}
-              {result.kind === "invalid" && "Billet introuvable"}
-              {result.kind === "error" && "Vérification impossible"}
-            </p>
-            {result.kind === "valid" && result.duplicate && (
-              <p className="mt-2 text-sm font-semibold text-secondary">
-                Attention : ce billet a déjà été contrôlé pendant cette session.
+        <section aria-live="polite" className={`mt-8 overflow-hidden rounded-3xl border ${tone[result.kind].box}`}>
+          <div className={`px-6 py-6 text-center ${tone[result.kind].head}`}>
+            <p className={`font-sora text-3xl font-bold ${tone[result.kind].text}`}>{heading[result.kind]}</p>
+
+            {result.kind === "used" && result.ticket.checkedInAt && (
+              <p className="mt-2 text-sm text-on-surface-variant">
+                Entrée déjà enregistrée le {formatDateCompact(result.ticket.checkedInAt)}.
               </p>
             )}
-            {result.kind === "valid" && result.past && (
+            {result.kind === "entered" && result.ticket.checkedInAt && (
+              <p className="mt-2 text-sm text-on-surface-variant">
+                Enregistrée le {formatDateCompact(result.ticket.checkedInAt)}.
+              </p>
+            )}
+            {(result.kind === "valid" || result.kind === "entered") && result.past && (
               <p className="mt-2 text-sm text-on-surface-variant">Ce concert a déjà eu lieu.</p>
             )}
             {result.kind === "invalid" && (
@@ -217,7 +266,7 @@ export default function TicketControl() {
             {result.kind === "error" && <p className="mt-2 text-sm text-on-surface-variant">{result.message}</p>}
           </div>
 
-          {(result.kind === "valid" || result.kind === "cancelled") && (
+          {result.kind !== "invalid" && result.kind !== "error" && (
             <div className="space-y-3 bg-surface-container-low p-6">
               <p className="font-sora text-xl font-bold">{result.ticket.concert?.title ?? "Concert supprimé"}</p>
               {result.ticket.concert && (
@@ -235,6 +284,16 @@ export default function TicketControl() {
                   <span className="font-semibold">{formatPrice(result.ticket.totalPrice)}</span>
                 </p>
               </div>
+
+              {result.kind === "valid" && (
+                <button
+                  onClick={validateEntry}
+                  disabled={busy}
+                  className="mt-2 w-full rounded-xl bg-tertiary-container py-3.5 font-sora font-semibold text-background transition hover:brightness-110 disabled:opacity-60"
+                >
+                  {busy ? "Validation…" : "Valider l'entrée"}
+                </button>
+              )}
             </div>
           )}
         </section>

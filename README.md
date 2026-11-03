@@ -146,7 +146,6 @@ app.enableCors({ origin: ["http://localhost:3001"] });
 
 ## Limites connues et pistes d'amélioration
 
-- **Validation à l'entrée** : le contrôle de billet est en lecture seule ; il manque une route `check-in` côté API (date d'entrée enregistrée, refus du second passage) pour empêcher vraiment la réutilisation d'un billet.
 - **Paiement** : les réservations ne passent par aucun paiement (Wave / Orange Money prévus dans les maquettes).
 - **Images** : les concerts n'ont pas d'affiche en base ; des visuels génériques sont utilisés selon le genre.
 - **Scan caméra** : nécessite HTTPS et un navigateur compatible (`BarcodeDetector`).

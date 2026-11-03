@@ -15,8 +15,9 @@ import type {
   User,
 } from "./types";
 
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+export const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
+).replace(/\/+$/, "");
 
 const TOKEN_KEY = "mst_token";
 

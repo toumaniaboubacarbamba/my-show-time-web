@@ -48,13 +48,14 @@ async function request<T>(
 ): Promise<T> {
   const { auth = true, headers, ...rest } = options;
   const token = auth ? tokenStore.get() : null;
+  const isForm = typeof FormData !== "undefined" && rest.body instanceof FormData;
 
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, {
       ...rest,
       headers: {
-        "Content-Type": "application/json",
+        ...(isForm ? {} : { "Content-Type": "application/json" }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...headers,
       },
@@ -143,9 +144,26 @@ export const concertsApi = {
     return request<Concert>(`/concerts/${id}`, { method: "PATCH", body: JSON.stringify(input) });
   },
 
+  uploadPoster(id: string, file: File) {
+    const form = new FormData();
+    form.append("file", file); // même nom que FileInterceptor('file')
+    return request<Concert>(`/concerts/${id}/poster`, { method: "POST", body: form });
+  },
+
   remove(id: string) {
     return request<void>(`/concerts/${id}`, { method: "DELETE" });
   },
+
+  // Upload de l'affiche (poster) d'un concert
+  // uploadPoster(id: string, file: File) {
+  //   const formData = new FormData();
+  //   formData.append("poster", file);
+
+  //   return request<Concert>(`/concerts/${id}/poster`, {
+  //     method: "PATCH",
+  //     body: formData,
+  //   });
+  // },
 };
 
 /* ---------- Admin ---------- */

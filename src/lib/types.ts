@@ -16,6 +16,7 @@ export interface Concert {
   totalSeats: number;
   availableSeats: number;
   price: number;
+  posterUrl?: string;
 }
 
 export interface Paginated<T> {

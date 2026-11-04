@@ -7,7 +7,7 @@ import type { Concert, ConcertInput } from "@/lib/types";
 const input =
   "w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-2.5 text-sm outline-none transition focus:border-primary-container focus:ring-2 focus:ring-primary-container/30";
 
-const GENRES = ["zouglou", "coupé-décalé", "rap", "drill ivoire", "afro-jazz", "reggae"];
+const GENRES = ["zouglou", "coupé-décalé", "rap", "drill ivoire", "afro-jazz", "reggae", "afrobeat", "pop", "rock", "folk", "blues", "jazz", "classique", "musique traditionnelle","musique religieuse", "autre"];
 
 export default function ConcertFormModal({
   concert,
@@ -26,14 +26,36 @@ export default function ConcertFormModal({
   const [venue, setVenue] = useState(concert?.venue ?? "");
   const [totalSeats, setTotalSeats] = useState(String(concert?.totalSeats ?? ""));
   const [price, setPrice] = useState(String(concert?.price ?? ""));
+  const [poster, setPoster] = useState<File | null>(null);
+  const [posterPreview, setPosterPreview] = useState<string | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(concert?._id ?? null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const currentPoster = posterPreview ?? concert?.posterUrl ?? null;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  useEffect(() => {
+    return () => {
+      if (posterPreview) URL.revokeObjectURL(posterPreview);
+    };
+  }, [posterPreview]);
+
+  function onPickPoster(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    setError(null);
+    if (file) {
+      if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return setError("Format accepté : JPG, PNG ou WebP.");
+      if (file.size > 5 * 1024 * 1024) return setError("L'image dépasse 5 Mo.");
+    }
+    if (posterPreview) URL.revokeObjectURL(posterPreview);
+    setPoster(file);
+    setPosterPreview(file ? URL.createObjectURL(file) : null);
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,8 +78,23 @@ export default function ConcertFormModal({
 
     setSubmitting(true);
     try {
-      if (concert) await concertsApi.update(concert._id, payload);
-      else await concertsApi.create(payload);
+      const saved = savedId
+        ? await concertsApi.update(savedId, payload)
+        : await concertsApi.create(payload);
+      setSavedId(saved._id);
+
+      if (poster) {
+        try {
+          await concertsApi.uploadPoster(saved._id, poster);
+        } catch (err) {
+          setError(
+            `Concert enregistré, mais l'affiche n'a pas pu être envoyée : ${
+              err instanceof Error ? err.message : "erreur inconnue"
+            }. Réessaie.`,
+          );
+          return;
+        }
+      }
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Enregistrement impossible.");
@@ -126,6 +163,23 @@ export default function ConcertFormModal({
             <span className="mb-1.5 block text-sm font-medium">Prix (FCFA)</span>
             <input required type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} className={input} />
           </label>
+        </div>
+
+        <div>
+          <label htmlFor="poster" className="mb-1.5 block text-sm font-medium">
+            Affiche (JPG, PNG ou WebP, 5 Mo max)
+          </label>
+          {currentPoster && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={currentPoster} alt="Aperçu de l'affiche" className="mb-3 h-48 w-full rounded-xl object-cover" />
+          )}
+          <input
+            id="poster"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={onPickPoster}
+            className="block w-full text-sm file:mr-4 file:rounded-xl file:border-0 file:bg-primary-container file:px-4 file:py-2 file:text-sm file:font-semibold file:text-on-primary hover:file:brightness-110"
+          />
         </div>
 
         <div className="flex justify-end gap-3 pt-2">

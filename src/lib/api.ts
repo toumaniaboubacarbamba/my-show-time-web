@@ -205,10 +205,10 @@ export const adminApi = {
 /* ---------- Réservations ---------- */
 
 export const bookingsApi = {
-  create(concertId: string, quantity: number) {
+  create(concertId: string, tier: string, quantity: number) {
     return request<unknown>("/bookings", {
       method: "POST",
-      body: JSON.stringify({ concertId, quantity }),
+      body: JSON.stringify({ concertId, tier, quantity }),
     });
   },
 

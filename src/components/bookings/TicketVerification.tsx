@@ -92,6 +92,7 @@ export default function TicketVerification({ reference }: { reference: string })
               )}
 
               <div className="border-t border-dashed border-outline-variant pt-4">
+                <Row label="Catégorie" value={ticket.tierName} />
                 <Row label="Places" value={String(ticket.quantity)} />
                 <Row label="Montant" value={formatPrice(ticket.totalPrice)} />
                 <Row label="Référence" value={ticket.reference} mono />

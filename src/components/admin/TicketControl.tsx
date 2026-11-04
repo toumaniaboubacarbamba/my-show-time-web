@@ -266,6 +266,10 @@ export default function TicketControl() {
               )}
               <div className="flex flex-wrap gap-6 border-t border-dashed border-outline-variant pt-3 text-sm">
                 <p>
+                  <span className="text-on-surface-variant">Catégorie : </span>
+                  <span className="font-sora text-lg font-bold">{result.ticket.tierName}</span>
+                </p>
+                <p>
                   <span className="text-on-surface-variant">Places : </span>
                   <span className="font-sora text-lg font-bold">{result.ticket.quantity}</span>
                 </p>

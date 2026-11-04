@@ -70,7 +70,8 @@ export default function BookingCard({
           )}
 
           <p className="text-sm">
-            {booking.quantity} place{booking.quantity > 1 ? "s" : ""} ·{" "}
+            {booking.quantity} place{booking.quantity > 1 ? "s" : ""}{" "}
+            <span className="text-on-surface-variant">en {booking.tierName}</span> ·{" "}
             <span className="font-sora font-semibold">{formatPrice(booking.totalPrice)}</span>
           </p>
         </div>

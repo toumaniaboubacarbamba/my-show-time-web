@@ -11,6 +11,7 @@ import type { Concert } from "@/lib/types";
 import { concertImage } from "./ConcertCard";
 
 const MAX_PER_ORDER = 10;
+const nf = (n: number) => new Intl.NumberFormat("fr-FR").format(n);
 
 type Loaded = {
   id: string;
@@ -32,6 +33,7 @@ export default function ConcertDetail({ id }: { id: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [booked, setBooked] = useState<number | null>(null);
   const [bookingError, setBookingError] = useState<string | null>(null);
+  const [tierName, setTierName] = useState<string | null>(null); // null = première catégorie disponible
 
   // Favori rangé avec le groupe concerné (null = pas encore chargé)
   const [fav, setFav] = useState<{ band: string; id: string | null } | null>(null);
@@ -62,6 +64,11 @@ export default function ConcertDetail({ id }: { id: string }) {
   const concert = current?.concert ?? null;
   const status = current ? current.status : "loading";
   const loadError = current?.loadError ?? null;
+  const tiers = concert?.tiers ?? [];
+  const tier =
+    tiers.find((t) => t.name === tierName) ??
+    tiers.find((t) => t.availableSeats > 0) ??
+    tiers[0];
 
   // L'utilisateur suit-il déjà ce groupe ?
   const band = concert?.band;
@@ -108,12 +115,12 @@ export default function ConcertDetail({ id }: { id: string }) {
   }
 
   async function book() {
-    if (!concert) return;
+    if (!concert || !tier) return;
     if (!user) return goLogin();
     setSubmitting(true);
     setBookingError(null);
     try {
-      await bookingsApi.create(concert._id, quantity);
+      await bookingsApi.create(concert._id, tier.name, quantity);
       setBooked(quantity);
       setQuantity(1);
       setVersion((v) => v + 1); // recharge en silence les places restantes
@@ -158,12 +165,13 @@ export default function ConcertDetail({ id }: { id: string }) {
 
   const past = new Date(concert.date).getTime() < now;
   const soldOut = concert.availableSeats <= 0;
-  const closed = past || soldOut;
-  const maxQty = Math.max(1, Math.min(MAX_PER_ORDER, concert.availableSeats));
-  const total = concert.price * quantity;
-  const sold = concert.totalSeats - concert.availableSeats;
-  const fill = Math.min(100, Math.round((sold / concert.totalSeats) * 100));
-  const free = 100 - fill;
+  const tierSeats = tier?.availableSeats ?? 0;
+  const tierFull = tierSeats <= 0;
+  const closed = past || tierFull;
+  const maxQty = Math.max(1, Math.min(MAX_PER_ORDER, tierSeats));
+  const unitPrice = tier?.price ?? concert.price;
+  const total = unitPrice * quantity;
+  const free = tier && tier.totalSeats > 0 ? Math.round((tier.availableSeats / tier.totalSeats) * 100) : 0;
 
   const info = [
     { label: "Date & heure", value: formatDateLong(concert.date) },
@@ -258,8 +266,10 @@ export default function ConcertDetail({ id }: { id: string }) {
 
           <div className="my-5 border-t border-dashed border-outline-variant" />
 
-          <p className="text-sm text-on-surface-variant">Tarif unique par place</p>
-          <p className="font-sora text-4xl font-bold text-primary-container">{formatPrice(concert.price)}</p>
+          <p className="text-sm text-on-surface-variant">
+            {tiers.length > 1 ? `Tarif ${tier?.name}` : "Tarif unique par place"}
+          </p>
+          <p className="font-sora text-4xl font-bold text-primary-container">{formatPrice(unitPrice)}</p>
 
           {booked !== null ? (
             <div className="mt-6 rounded-xl border border-tertiary/40 bg-tertiary/10 p-4">
@@ -310,10 +320,52 @@ export default function ConcertDetail({ id }: { id: string }) {
                 </div>
               </div>
 
+              {tiers.length > 1 && (
+                <fieldset className="mt-6">
+                  <legend className="mb-2 text-sm font-medium">Catégorie</legend>
+                  <div className="space-y-2">
+                    {tiers.map((t) => {
+                      const full = t.availableSeats <= 0;
+                      const selected = t.name === tier?.name;
+                      return (
+                        <label
+                          key={t.name}
+                          className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 transition ${
+                            selected ? "border-primary-container bg-primary-container/10" : "border-outline-variant hover:bg-surface-container"
+                          } ${full ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                        >
+                          <span className="flex items-center gap-3">
+                            <input
+                              type="radio"
+                              name="tier"
+                              value={t.name}
+                              checked={selected}
+                              disabled={full}
+                              onChange={() => {
+                                setTierName(t.name);
+                                setQuantity(1);
+                              }}
+                              className="accent-primary-container"
+                            />
+                            <span>
+                              <span className="block font-medium">{t.name}</span>
+                              <span className="block text-xs text-on-surface-variant">
+                                {full ? "Complet" : `${nf(t.availableSeats)} places restantes`}
+                              </span>
+                            </span>
+                          </span>
+                          <span className="font-sora font-semibold">{formatPrice(t.price)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              )}
+
               <div className="mt-5 flex items-end justify-between rounded-xl bg-surface-container-lowest p-4">
                 <div>
                   <p className="text-xs text-on-surface-variant">Calcul du montant</p>
-                  <p className="text-sm">{quantity} × {formatPrice(concert.price)}</p>
+                  <p className="text-sm">{quantity} × {formatPrice(unitPrice)}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-[11px] uppercase tracking-widest text-on-surface-variant">Total</p>
@@ -326,9 +378,9 @@ export default function ConcertDetail({ id }: { id: string }) {
                   <div className="h-full rounded-full bg-primary-container" style={{ width: `${free}%` }} />
                 </div>
                 <p className="mt-1.5 text-xs text-on-surface-variant">
-                  {soldOut
-                    ? "Complet"
-                    : `${new Intl.NumberFormat("fr-FR").format(concert.availableSeats)} places restantes sur ${new Intl.NumberFormat("fr-FR").format(concert.totalSeats)}`}
+                  {tierFull
+                    ? soldOut ? "Complet" : `${tier?.name} : complet`
+                    : `${nf(tierSeats)} places restantes${tiers.length > 1 ? ` en ${tier?.name}` : ""} sur ${nf(tier?.totalSeats ?? 0)}`}
                 </p>
               </div>
 
@@ -345,8 +397,8 @@ export default function ConcertDetail({ id }: { id: string }) {
               >
                 {past
                   ? "Concert terminé"
-                  : soldOut
-                    ? "Complet"
+                  : tierFull
+                    ? soldOut ? "Complet" : "Catégorie complète"
                     : submitting
                       ? "Réservation en cours…"
                       : user

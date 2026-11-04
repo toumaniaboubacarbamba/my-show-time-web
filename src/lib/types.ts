@@ -6,6 +6,19 @@ export interface User {
   role: Role;
 }
 
+export interface TicketTier {
+  name: string;
+  price: number;
+  totalSeats: number;
+  availableSeats: number;
+}
+
+export interface TierInput {
+  name: string;
+  price: number;
+  totalSeats: number;
+}
+
 export interface Concert {
   _id: string;
   title: string;
@@ -13,9 +26,10 @@ export interface Concert {
   genre: string;
   date: string; // ISO
   venue: string;
-  totalSeats: number;
-  availableSeats: number;
-  price: number;
+  totalSeats: number; // total des catégories
+  availableSeats: number; // total des catégories
+  price: number; // prix le plus bas (« Dès X »)
+  tiers: TicketTier[];
   posterUrl?: string;
 }
 
@@ -54,6 +68,8 @@ export interface Booking {
   reference: string;
   status: BookingStatus;
   quantity: number;
+  tierName: string;
+  unitPrice: number;
   totalPrice: number;
   concert: BookingConcert | null;
   createdAt: string;
@@ -86,8 +102,7 @@ export interface ConcertInput {
   genre: string;
   date: string; // ISO
   venue: string;
-  totalSeats: number;
-  price: number;
+  tiers: TierInput[];
 }
 
 export interface AdminStats {

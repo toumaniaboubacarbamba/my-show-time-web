@@ -145,7 +145,12 @@ export default function AdminConcerts() {
                         <div className="h-full bg-primary-container" style={{ width: `${fill}%` }} />
                       </div>
                     </td>
-                    <td className="px-3 py-4 whitespace-nowrap font-semibold">{formatPrice(c.price)}</td>
+                    <td className="px-3 py-4 whitespace-nowrap font-semibold">
+                      {formatPrice(c.price)}
+                      {(c.tiers?.length ?? 0) > 1 && (
+                        <span className="block text-xs font-normal text-on-surface-variant">{c.tiers.length} catégories</span>
+                      )}
+                    </td>
                     <td className="px-5 py-4 text-right">
                       {deletingId === c._id ? (
                         <span className="inline-flex items-center gap-2">

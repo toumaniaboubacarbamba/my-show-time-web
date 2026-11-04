@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import QrScanner from "qr-scanner";
 import { ApiError, bookingsApi } from "@/lib/api";
 import { formatDateCompact, formatPrice } from "@/lib/format";
 import { extractReference } from "@/lib/reference";
@@ -59,7 +60,10 @@ export default function TicketControl() {
 
   // Scan caméra : seulement si le navigateur sait lire les QR codes ET que la page est en HTTPS (ou localhost)
   const [cameraSupported] = useState(
-    () => typeof window !== "undefined" && "BarcodeDetector" in window && window.isSecureContext,
+    () =>
+      typeof window !== "undefined" &&
+      window.isSecureContext &&
+      Boolean(navigator.mediaDevices?.getUserMedia),
   );
   const [scanning, setScanning] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -131,42 +135,28 @@ export default function TicketControl() {
 
   // Caméra
   useEffect(() => {
-    if (!scanning) return;
-    let stream: MediaStream | null = null;
-    let timer: ReturnType<typeof setInterval> | null = null;
-    let stopped = false;
+    if (!scanning || !videoRef.current) return;
+    let handled = false;
 
-    (async () => {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-        if (stopped || !videoRef.current) return;
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const detector = new (window as any).BarcodeDetector({ formats: ["qr_code"] });
-        timer = setInterval(async () => {
-          if (!videoRef.current) return;
-          try {
-            const codes = await detector.detect(videoRef.current);
-            if (codes.length > 0) {
-              setScanning(false);
-              check(codes[0].rawValue);
-            }
-          } catch {
-            /* image pas prête, on réessaie */
-          }
-        }, 300);
-      } catch {
-        setCameraError("Impossible d'accéder à la caméra. Vérifie l'autorisation du navigateur.");
+    const scanner = new QrScanner(
+      videoRef.current,
+      (res) => {
+        if (handled) return;
+        handled = true;
         setScanning(false);
-      }
-    })();
+        check(res.data);
+      },
+      { returnDetailedScanResult: true, preferredCamera: "environment", maxScansPerSecond: 5 },
+    );
+
+    scanner.start().catch(() => {
+      setCameraError("Impossible d'accéder à la caméra. Vérifie l'autorisation du navigateur.");
+      setScanning(false);
+    });
 
     return () => {
-      stopped = true;
-      if (timer) clearInterval(timer);
-      stream?.getTracks().forEach((t) => t.stop());
+      scanner.stop();
+      scanner.destroy();
     };
     // `check` est volontairement exclu : on ne relance pas la caméra à chaque rendu
     // eslint-disable-next-line react-hooks/exhaustive-deps

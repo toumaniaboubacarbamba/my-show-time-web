@@ -8,6 +8,10 @@ export function pickImage(genre: string) {
   return `/images/concerts/${(sum % 3) + 1}.jpg`;
 }
 
+export function concertImage(concert: Pick<Concert, "posterUrl" | "genre">) {
+  return concert.posterUrl ?? pickImage(concert.genre);
+}
+
 export default function ConcertCard({ concert }: { concert: Concert }) {
   const { day, month } = formatDateShort(concert.date);
   const sold = concert.totalSeats - concert.availableSeats;
@@ -19,7 +23,7 @@ export default function ConcertCard({ concert }: { concert: Concert }) {
     <article className="group flex flex-col overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface-container-low transition hover:-translate-y-1 hover:border-primary-container/60">
       <div className="relative h-44 overflow-hidden">
         <Image
-          src={pickImage(concert.genre)}
+          src={concertImage(concert)}
           alt=""
           fill
           sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"

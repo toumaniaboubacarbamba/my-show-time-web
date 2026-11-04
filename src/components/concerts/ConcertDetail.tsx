@@ -8,7 +8,7 @@ import { ApiError, bookingsApi, concertsApi, favoritesApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { formatDateLong, formatPrice } from "@/lib/format";
 import type { Concert } from "@/lib/types";
-import { pickImage } from "./ConcertCard";
+import { concertImage } from "./ConcertCard";
 
 const MAX_PER_ORDER = 10;
 
@@ -185,7 +185,7 @@ export default function ConcertDetail({ id }: { id: string }) {
       {/* Hero */}
       <section className="relative isolate overflow-hidden rounded-3xl border border-outline-variant/60">
         <Image
-          src={pickImage(concert.genre)}
+          src={concertImage(concert)}
           alt=""
           fill
           priority
